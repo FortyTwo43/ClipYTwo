@@ -146,6 +146,47 @@ Diferentes estrategias para descargar contenido según el tipo y calidad:
 
 Cada estrategia implementa la interfaz `DownloadStrategy` y define su propia lógica de descarga.
 
+#### Diagrama de Clases - Pattern Strategy
+
+```mermaid
+classDiagram
+    class DownloadStrategy {
+        <<interface>>
+        #observable: Observable
+        +get_available_qualities(video_info)*
+        +download(video_info, quality, output_path)*
+    }
+    
+    class AbstractDownloadStrategy {
+        #adapter: DownloadAdapter
+        #ffmpeg_path: str
+        +download(video_info, quality, output_path)
+        #_validate_inputs()*
+        #_prepare_download()*
+        #_execute_download()*
+        #_post_process()
+        #_cleanup()
+        #_get_quality_type()*
+        +get_available_qualities()
+    }
+    
+    class VideoDownloadStrategy {
+        #_get_quality_type(): str
+        #_prepare_download(video_info, quality, output_path): dict
+        #_execute_download(video_info, download_params): str
+    }
+    
+    class AudioDownloadStrategy {
+        #_get_quality_type(): str
+        #_prepare_download(video_info, quality, output_path): dict
+        #_execute_download(video_info, download_params): str
+    }
+    
+    DownloadStrategy <|-- AbstractDownloadStrategy
+    AbstractDownloadStrategy <|-- VideoDownloadStrategy
+    AbstractDownloadStrategy <|-- AudioDownloadStrategy
+```
+
 ### 2. Factory (Fábrica)
 
 **Ubicación**: `src/patterns/factory.py`
@@ -155,6 +196,44 @@ Cada estrategia implementa la interfaz `DownloadStrategy` y define su propia ló
 ```python
 strategy = StrategyFactory.create_strategy('video', adapter, observable)
 strategy = StrategyFactory.create_strategy('audio', adapter, observable)
+```
+
+#### Diagrama de Clases - Pattern Factory
+
+```mermaid
+classDiagram
+    class DownloadStrategy {
+        <<interface>>
+    }
+    
+    class VideoDownloadStrategy {
+        +_get_quality_type(): str
+        +_prepare_download()
+        +_execute_download()
+    }
+    
+    class AudioDownloadStrategy {
+        +_get_quality_type(): str
+        +_prepare_download()
+        +_execute_download()
+    }
+    
+    class StrategyFactory {
+        +create_strategy(download_type, adapter, observable)$ DownloadStrategy
+    }
+    
+    class DownloadAdapter {
+    }
+    
+    class Observable {
+    }
+    
+    StrategyFactory --> VideoDownloadStrategy: creates
+    StrategyFactory --> AudioDownloadStrategy: creates
+    VideoDownloadStrategy ..|> DownloadStrategy
+    AudioDownloadStrategy ..|> DownloadStrategy
+    StrategyFactory --> DownloadAdapter: uses
+    StrategyFactory --> Observable: uses
 ```
 
 ### 3. Template Method (Método Plantilla)
@@ -171,6 +250,49 @@ strategy = StrategyFactory.create_strategy('audio', adapter, observable)
 
 Las subclases implementan los pasos específicos que varían (como `_prepare_download` y `_execute_download`).
 
+#### Diagrama de Clases - Pattern Template Method
+
+```mermaid
+classDiagram
+    class DownloadStrategy {
+        <<interface>>
+        +download()*
+    }
+    
+    class AbstractDownloadStrategy {
+        #adapter: DownloadAdapter
+        #ffmpeg_path: str
+        +download(video_info, quality, output_path)
+        #_validate_inputs(video_info, quality, output_path)*
+        #_prepare_download(video_info, quality, output_path)*
+        #_execute_download(video_info, download_params)*
+        #_post_process(temp_file, output_path)
+        #_cleanup(temp_file, final_file)
+        #_get_quality_type()*
+        +get_available_qualities(video_info)
+    }
+    
+    class VideoDownloadStrategy {
+        #_validate_inputs()*
+        #_prepare_download()*
+        #_execute_download()*
+        #_get_quality_type()*
+    }
+    
+    class AudioDownloadStrategy {
+        #_validate_inputs()*
+        #_prepare_download()*
+        #_execute_download()*
+        #_get_quality_type()*
+    }
+    
+    note for AbstractDownloadStrategy "Template Method: download() define el esqueleto, subclases implementan pasos específicos"
+    
+    DownloadStrategy <|-- AbstractDownloadStrategy
+    AbstractDownloadStrategy <|-- VideoDownloadStrategy
+    AbstractDownloadStrategy <|-- AudioDownloadStrategy
+```
+
 ### 4. Adapter (Adaptador)
 
 **Ubicación**: `src/patterns/adapter.py`
@@ -181,6 +303,45 @@ Las subclases implementan los pasos específicos que varían (como `_prepare_dow
 - Desacoplamiento de librerías externas
 - Fácil cambio de implementación
 - API unificada para el resto de la aplicación
+
+#### Diagrama de Clases - Pattern Adapter
+
+```mermaid
+classDiagram
+    class External_YtDlp {
+        <<external library>>
+        +YoutubeDL
+        +extract_info()
+        +download()
+    }
+    
+    class DownloadAdapter {
+        -ffmpeg_path: str
+        +get_video_info(url): VideoInfo
+        +get_available_qualities(video_info, quality_type): List
+        +download_video(video_info, quality, output_path): str
+        +download_audio(video_info, quality, output_path): str
+        #_get_video_format_selector(): str
+        #_get_audio_format_selector(): str
+        #_extract_bitrate(): str
+    }
+    
+    class Observable {
+    }
+    
+    class VideoInfo {
+        +url: str
+        +title: str
+        +duration: int
+        +formats: List
+    }
+    
+    note for DownloadAdapter "Proporciona interfaz unificada que abstrae yt-dlp"
+    
+    DownloadAdapter --> External_YtDlp: adapts
+    DownloadAdapter --> Observable: uses
+    DownloadAdapter --> VideoInfo: returns
+```
 
 ### 5. Observer (Observador)
 
@@ -193,6 +354,38 @@ Sistema de notificaciones para actualizar la interfaz en tiempo real:
 
 **Uso**: Las estrategias de descarga notifican cambios (progreso, estado) que son observados por la vista para actualizar la UI.
 
+#### Diagrama de Clases - Pattern Observer
+
+```mermaid
+classDiagram
+    class Observer {
+        <<interface>>
+        +update(message, progress, status)*
+    }
+    
+    class Observable {
+        -_observers: List[Observer]
+        +attach(observer): void
+        +detach(observer): void
+        +notify(message, progress, status): void
+    }
+    
+    class MainWindow {
+        +update(message, progress, status)
+    }
+    
+    class DownloadStrategy {
+        #observable: Observable
+    }
+    
+    note for Observable "Mantiene lista de observadores y notifica cambios"
+    note for MainWindow "Implementa Observer para recibir actualizaciones"
+    
+    Observable o-- Observer: notifies
+    MainWindow ..|> Observer
+    DownloadStrategy --> Observable: uses
+```
+
 ### 6. Command (Comando)
 
 **Ubicación**: `src/patterns/command.py`
@@ -203,6 +396,42 @@ Sistema de notificaciones para actualizar la interfaz en tiempo real:
 - Encolar operaciones (futuro)
 - Deshacer operaciones (futuro)
 - Registrar historial de operaciones
+
+#### Diagrama de Clases - Pattern Command
+
+```mermaid
+classDiagram
+    class Command {
+        <<interface>>
+        +execute()*
+    }
+    
+    class DownloadCommand {
+        -strategy: DownloadStrategy
+        -video_info: VideoInfo
+        -quality: str
+        -output_path: str
+        -observable: Observable
+        +execute(): bool
+    }
+    
+    class DownloadStrategy {
+        +download(video_info, quality, output_path): bool
+    }
+    
+    class VideoInfo {
+    }
+    
+    class Observable {
+    }
+    
+    note for DownloadCommand "Encapsula una solicitud de descarga con todos sus parámetros"
+    
+    Command <|-- DownloadCommand
+    DownloadCommand --> DownloadStrategy: uses
+    DownloadCommand --> VideoInfo: contains
+    DownloadCommand --> Observable: uses
+```
 
 ### 7. Facade (Fachada)
 
@@ -221,6 +450,46 @@ success = facade.download(video_info, 'video', '720p')
 - Interfaz simple para operaciones complejas
 - Oculta la complejidad de múltiples clases
 - Facilita el uso del sistema
+
+#### Diagrama de Clases - Pattern Facade
+
+```mermaid
+classDiagram
+    class DownloadFacade {
+        -observable: Observable
+        -adapter: DownloadAdapter
+        -downloads_folder: str
+        +get_video_info(url): VideoInfo
+        +get_available_qualities(video_info, download_type): List
+        +download(video_info, download_type, quality, filename): bool
+        #_get_downloads_folder(): str
+        #_sanitize_filename(filename): str
+    }
+    
+    class DownloadAdapter {
+    }
+    
+    class StrategyFactory {
+        +create_strategy()$
+    }
+    
+    class DownloadCommand {
+    }
+    
+    class Observable {
+    }
+    
+    class VideoInfo {
+    }
+    
+    note for DownloadFacade "Interfaz simplificada que oculta la complejidad del sistema"
+    
+    DownloadFacade --> DownloadAdapter: uses
+    DownloadFacade --> StrategyFactory: uses
+    DownloadFacade --> DownloadCommand: creates
+    DownloadFacade --> Observable: uses
+    DownloadFacade --> VideoInfo: returns/uses
+```
 
 ## 🔧 Compilación a Ejecutable
 
